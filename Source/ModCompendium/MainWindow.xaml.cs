@@ -239,6 +239,13 @@ namespace ModCompendium
 
             var task = Task.Factory.StartNew( () =>
             {
+                GameComboBox.IsEnabled = false;
+                SettingsButton.IsEnabled = false;
+                BuildButton.IsEnabled = false;
+                RefreshButton.IsEnabled = false;
+                NewButton.IsEnabled = false;
+                DeleteButton.IsEnabled = false;
+
                 var enabledMods = GameConfig.EnabledModIds.Select( ModDatabase.Get )
                                             .ToList();
 
@@ -270,9 +277,16 @@ namespace ModCompendium
                 {
                     builder.Build( merged, GameConfig.OutputDirectoryPath );
                 }
- #if !DEBUG
+#if !DEBUG
                 catch ( InvalidConfigException exception )
                 {
+                    GameComboBox.IsEnabled = true;
+                    SettingsButton.IsEnabled = true;
+                    BuildButton.IsEnabled = true;
+                    RefreshButton.IsEnabled = true;
+                    NewButton.IsEnabled = true;
+                    DeleteButton.IsEnabled = true;
+
                     InvokeOnUIThread(
                         () => MessageBox.Show( this, $"SelectedGame configuration is invalid.\n{exception.Message}", "Error",
                                                MessageBoxButton.OK, MessageBoxImage.Error ) );
@@ -281,6 +295,13 @@ namespace ModCompendium
                 }
                 catch ( MissingFileException exception )
                 {
+                    GameComboBox.IsEnabled = true;
+                    SettingsButton.IsEnabled = true;
+                    BuildButton.IsEnabled = true;
+                    RefreshButton.IsEnabled = true;
+                    NewButton.IsEnabled = true;
+                    DeleteButton.IsEnabled = true;
+
                     InvokeOnUIThread(
                         () => MessageBox.Show( this, $"A file is missing:\n{exception.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error ) );
 
@@ -288,6 +309,13 @@ namespace ModCompendium
                 }
                 catch ( Exception exception )
                 {
+                    GameComboBox.IsEnabled = true;
+                    SettingsButton.IsEnabled = true;
+                    BuildButton.IsEnabled = true;
+                    RefreshButton.IsEnabled = true;
+                    NewButton.IsEnabled = true;
+                    DeleteButton.IsEnabled = true;
+
                     InvokeOnUIThread(
                         () => 
                         MessageBox.Show(
@@ -312,7 +340,16 @@ namespace ModCompendium
                 InvokeOnUIThread( () =>
                 {
                     if ( t.Result )
-                        MessageBox.Show( this, "Done building!", "Done", MessageBoxButton.OK, MessageBoxImage.None );
+                    {
+                        GameComboBox.IsEnabled = true;
+                        SettingsButton.IsEnabled = true;
+                        BuildButton.IsEnabled = true;
+                        RefreshButton.IsEnabled = true;
+                        NewButton.IsEnabled = true;
+                        DeleteButton.IsEnabled = true;
+
+                        MessageBox.Show(this, "Done building!", "Done", MessageBoxButton.OK, MessageBoxImage.None);
+                    }
                 } );
             } );
         }
