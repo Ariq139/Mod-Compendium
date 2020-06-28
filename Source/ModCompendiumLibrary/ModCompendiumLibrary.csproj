@@ -34,6 +34,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="AmicitiaLibrary">
+      <HintPath>..\..\Dependencies\Binaries\PersonaPatcher\AmicitiaLibrary.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -44,21 +47,24 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Configuration\ConfigManager.cs" />
+    <Compile Include="Configuration\ConfigStore.cs" />
+    <Compile Include="Configuration\GameConfigs\CatherineFullBodyGameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\ModCpkGameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\Persona4GoldenGameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\PersonaQ2GameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\PersonaQGameConfig.cs" />
     <Compile Include="Configuration\IConfigurable.cs" />
-    <Compile Include="Configuration\Persona3DancingGameConfig.cs" />
-    <Compile Include="Configuration\Persona3PortableGameConfig.cs" />
-    <Compile Include="Configuration\Persona4DancingGameConfig.cs" />
-    <Compile Include="Configuration\Persona4GoldenGameConfig.cs" />
-    <Compile Include="Configuration\Persona5DancingGameConfig.cs" />
-    <Compile Include="Configuration\PersonaPortableGameConfig.cs" />
+    <Compile Include="Configuration\ModConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\Persona3PortableGameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\Persona4DancingGameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\PersonaPortableGameConfig.cs" />
     <Compile Include="Configuration\XElementExtensions.cs" />
     <Compile Include="Configuration\GameConfig.cs" />
     <Compile Include="Configuration\GlobalConfig.cs" />
-    <Compile Include="Configuration\Persona34GameConfig.cs" />
-    <Compile Include="Configuration\Persona3GameConfig.cs" />
-    <Compile Include="Configuration\Persona4GameConfig.cs" />
-    <Compile Include="Configuration\Persona5GameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\Persona34GameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\Persona3GameConfig.cs" />
+    <Compile Include="Configuration\GameConfigs\Persona4GameConfig.cs" />
+    <Compile Include="IO\FileHelper.cs" />
     <Compile Include="IO\StreamView.cs" />
     <Compile Include="IO\UncloseableStream.cs" />
     <Compile Include="Logging\Log.cs" />
@@ -72,8 +78,11 @@
     <Compile Include="ModSystem\Builders\Exceptions\InvalidConfigException.cs" />
     <Compile Include="ModSystem\Builders\ModBuilderStackExecutor.cs" />
     <Compile Include="ModSystem\Builders\Common\CDReaderExtensions.cs" />
+    <Compile Include="ModSystem\Builders\ModCpkModBuilder.cs" />
     <Compile Include="ModSystem\Builders\Persona34IsoModBuilder.cs" />
     <Compile Include="ModSystem\Builders\Persona34\Persona34Common.cs" />
+    <Compile Include="ModSystem\Builders\CatherineFullBodyModBuilder.cs" />
+    <Compile Include="ModSystem\Builders\Persona34\PersonaPatcher.cs" />
     <Compile Include="ModSystem\Builders\PersonaPortableModBuilder.cs" />
     <Compile Include="ModSystem\Builders\Utilities\CpkCsvMaker.cs" />
     <Compile Include="ModSystem\Builders\Utilities\ShortcutResolver.cs" />
@@ -87,7 +96,6 @@
     <Compile Include="ModSystem\Builders\CvmModBuilder.cs" />
     <Compile Include="ModSystem\Builders\Persona34\ExecutablePatcher.cs" />
     <Compile Include="ModSystem\Builders\Persona34FileModBuilder.cs" />
-    <Compile Include="ModSystem\Builders\Persona5ModCpkModBuilder.cs" />
     <Compile Include="Game.cs" />
     <Compile Include="ModSystem\Mergers\IModMerger.cs" />
     <Compile Include="ModSystem\Builders\IModBuilder.cs" />

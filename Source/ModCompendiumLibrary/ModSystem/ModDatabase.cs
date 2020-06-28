@@ -38,7 +38,7 @@ namespace ModCompendiumLibrary.ModSystem
                 sModsByGame[value] = new List<Mod>();
             }
 
-            var config = ConfigManager.Get<ModDatabaseConfig>();
+            var config = ConfigStore.Get<ModDatabaseConfig>();
             ModDirectory = config.ModsDirectoryPath;
 
             if ( !Directory.Exists( ModDirectory ) )
@@ -92,7 +92,10 @@ namespace ModCompendiumLibrary.ModSystem
             if ( mod != null )
             {
                 sModById[ mod.Id ] = mod;
-                sModsByGame[ mod.Game ].Add( mod );
+                foreach ( var game in mod.Game )
+                {
+                    sModsByGame[ game ].Add( mod );
+                }
             }
 
             if ( notAModDirectory )

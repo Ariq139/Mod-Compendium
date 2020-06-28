@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,7 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using ModCompendium.GuiConfig;
+using ModCompendium.Configs;
 using ModCompendium.ViewModels;
 using ModCompendiumLibrary;
 using ModCompendiumLibrary.Configuration;
@@ -39,7 +40,10 @@ namespace ModCompendium
             "Persona 4 Dancing All Night",
             "Persona 5",
             "Persona 3 Dancing Moon Night",
-            "Persona 5 Dancing Star Night"
+            "Persona 5 Dancing Star Night",
+            "Persona Q",
+            "Persona Q2",
+            "Catherine Full Body"
         };
 
         public Game SelectedGame { get; private set; }
@@ -61,8 +65,9 @@ namespace ModCompendium
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
             Title = $"Mod Compendium {version.Major}.{version.Minor}.{version.Revision}";
-            Config = ConfigManager.Get<MainWindowConfig>();
+            Config = ConfigStore.Get<MainWindowConfig>();
             InitializeGameComboBox();
+            InitializeFolderComboBox();
         }
 
         private void InitializeLog()
@@ -76,30 +81,34 @@ namespace ModCompendium
             GameComboBox.SelectedIndex = Math.Max( 0, ( int ) Config.SelectedGame - 1 );
         }
 
-        private void RefreshMods()
+        private void InitializeFolderComboBox()
         {
-            var shouldUpdateOrder = false;
-            var uniqueOrders = new HashSet< int >();
+            FolderComboBox.SelectedIndex = 0;
+            List<string> sModFolders = new List<string> { "All Folders" };
+            var allModConfigs = GameConfig.ModConfigs.ToList();
 
-            Mods = ModDatabase.Get( SelectedGame )
-                              .OrderBy( x =>
-                              {
-                                  if ( Config.ModOrder.TryGetValue( x.Id, out var order ) )
-                                  {
-                                      shouldUpdateOrder = !uniqueOrders.Add( order ); // duplicate order
-                                      return order;
-                                  }
-                                  else
-                                  {
-                                      shouldUpdateOrder = true; // undefined order
-                                      return Config.ModOrder[x.Id] = 0;
-                                  }
-                              } )
-                              .Select( x => new ModViewModel( x ) )
+            Mods = ModDatabase.Get(SelectedGame)
+                              .OrderBy(x => GameConfig.GetModPriority(x.Id))
+                              .Select(x => new ModViewModel(x, SelectedGame))
                               .ToList();
 
-            if ( shouldUpdateOrder )
-                UpdateWindowConfigModOrder();
+            foreach (ModViewModel modViewModel in Mods)
+            {
+                Mod mod = (Mod)modViewModel;
+                string modFolder = Path.GetFileName(Path.GetDirectoryName(mod.BaseDirectory));
+                if (modFolder != "Mods" && !Regex.IsMatch(modFolder, "Persona[^ ]*") && !sModFolders.Contains(modFolder)) //Any folder containing mod that isn't for sorting mods by game
+                    sModFolders.Add(modFolder);
+            }
+
+            FolderComboBox.ItemsSource = sModFolders.ToArray();
+        }
+
+        private void RefreshMods()
+        {
+            Mods = ModDatabase.Get( SelectedGame )
+                              .OrderBy( x => GameConfig.GetModPriority( x.Id ) )
+                              .Select( x => new ModViewModel( x, SelectedGame ) )
+                              .ToList();
 
             ModGrid.ItemsSource = Mods;
         }
@@ -131,7 +140,7 @@ namespace ModCompendium
             for ( var i = 0; i < Mods.Count; i++ )
             {
                 var mod = Mods[i];
-                Config.ModOrder[mod.Id] = i;
+                GameConfig.SetModPriority( mod.Id, i );
             }
         }
 
@@ -139,7 +148,7 @@ namespace ModCompendium
         {
             UpdateGameConfigEnabledMods();
             UpdateWindowConfig();
-            ConfigManager.Save();
+            ConfigStore.Save();
         }
 
         private void UpdateWindowConfig()
@@ -207,8 +216,25 @@ namespace ModCompendium
         private void GameComboBox_SelectionChanged( object sender, SelectionChangedEventArgs e )
         {
             SelectedGame = ( Game )( GameComboBox.SelectedIndex + 1 );
-            GameConfig = ConfigManager.Get( SelectedGame );
+            GameConfig = ConfigStore.Get( SelectedGame );
             RefreshMods();
+            InitializeFolderComboBox();
+        }
+
+        private void FolderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var Mods2 = Mods;
+            if (FolderComboBox.SelectedIndex != 0)
+                foreach (ModViewModel modViewModel in Mods)
+                {
+                    Mod mod = (Mod)modViewModel;
+                    string folderName = Path.GetFileName(Path.GetDirectoryName(mod.BaseDirectory));
+                    if (FolderComboBox.SelectedItem.ToString() != folderName)
+                        Mods2 = Mods2.Where(m => m.Id != mod.Id).ToList();
+                }
+
+            ModGrid.ItemsSource = Mods2;
+
         }
 
         private void SettingsButton_Click( object sender, RoutedEventArgs e )
@@ -239,14 +265,10 @@ namespace ModCompendium
 
             var task = Task.Factory.StartNew( () =>
             {
-                GameComboBox.IsEnabled = false;
-                SettingsButton.IsEnabled = false;
-                BuildButton.IsEnabled = false;
-                RefreshButton.IsEnabled = false;
-                NewButton.IsEnabled = false;
-                DeleteButton.IsEnabled = false;
-
-                var enabledMods = GameConfig.EnabledModIds.Select( ModDatabase.Get )
+                var enabledMods = GameConfig.ModConfigs.Where( x => x.Enabled )
+                                            .OrderBy( x => x.Priority )
+                                            .Select( x => x.ModId )
+                                            .Select( x => ModDatabase.Get( x ) )
                                             .ToList();
 
                 Log.General.Info( "Building mods:" );
@@ -341,14 +363,8 @@ namespace ModCompendium
                 {
                     if ( t.Result )
                     {
-                        GameComboBox.IsEnabled = true;
-                        SettingsButton.IsEnabled = true;
-                        BuildButton.IsEnabled = true;
-                        RefreshButton.IsEnabled = true;
-                        NewButton.IsEnabled = true;
-                        DeleteButton.IsEnabled = true;
-
                         MessageBox.Show(this, "Done building!", "Done", MessageBoxButton.OK, MessageBoxImage.None);
+                        RunPostBuildScript( "postbuild.bat" );
                     }
                 } );
             } );
@@ -376,7 +392,27 @@ namespace ModCompendium
             }
         }
 
-        private void ModGrid_KeyDown( object sender, KeyEventArgs e )
+        private static void RunPostBuildScript(string scriptFileName)
+        {
+            var scriptFilePath = Path.Combine(Directory.GetCurrentDirectory(), scriptFileName);
+            if (File.Exists(scriptFilePath))
+            {
+                try
+                {
+                    var info = new ProcessStartInfo(Path.GetFullPath(scriptFilePath));
+                    info.WorkingDirectory = Path.GetFullPath(Directory.GetCurrentDirectory());
+
+                    var process = Process.Start(info);
+                    process?.WaitForExit();
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+    
+
+    private void ModGrid_KeyDown( object sender, KeyEventArgs e )
         {
             if ( e.Key == Key.Down )
             {
@@ -421,8 +457,8 @@ namespace ModCompendium
             var target = ( Mod )( ModViewModel )ModGrid.Items[targetIndex];
 
             // Order
-            Config.ModOrder[SelectedModViewModel.Id] = targetIndex;
-            Config.ModOrder[target.Id] = selectedIndex;
+            GameConfig.SetModPriority( SelectedModViewModel.Id, targetIndex );
+            GameConfig.SetModPriority( target.Id, selectedIndex );
 
             // Gui update
             Mods.Remove( SelectedModViewModel );
@@ -442,7 +478,7 @@ namespace ModCompendium
             UpdateConfigChangesAndSave();
 
             // Reload
-            ConfigManager.Load();
+            ConfigStore.Load();
             RefreshModDatabase();
         }
 

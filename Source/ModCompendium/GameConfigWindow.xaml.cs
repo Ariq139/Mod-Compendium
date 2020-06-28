@@ -92,8 +92,52 @@ namespace ModCompendium
                     Grid.SetColumn(dvdRootPathTextBoxButton, 1);
                     ConfigPropertyGrid.Children.Add(dvdRootPathTextBoxButton);
                 }
+
+                // Add extra row
+                ConfigPropertyGrid.RowDefinitions.Add(new RowDefinition());
+
+                // HostFS Mode checkbox label
+                {
+                    var hostFSLabel = new Label()
+                    {
+                        Content = "HostFS Mode",
+                        ToolTip = "Outputs files instead of CVMs for use with HostFS Patch",
+                        HorizontalContentAlignment = HorizontalAlignment.Center,
+                        VerticalContentAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Height = 35,
+                        Width = 120
+                    };
+
+                    Grid.SetRow(hostFSLabel, 4);
+                    Grid.SetColumn(hostFSLabel, 0);
+                    ConfigPropertyGrid.Children.Add(hostFSLabel);
+                }
+
+                // HostFS Mode Checkbox
+                CheckBox hostFS;
+                {
+                    hostFS = new CheckBox()
+                    {
+                        VerticalContentAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Height = 35,
+                    };
+
+                    hostFS.SetBinding(CheckBox.IsCheckedProperty, new Binding(nameof(Persona34GameConfig.HostFS)));
+
+                    Grid.SetRow(hostFS, 4);
+                    Grid.SetColumn(hostFS, 1);
+                    ConfigPropertyGrid.Children.Add(hostFS);
+                }
             }
-            else if (config.Game == Game.Persona3Portable || config.Game == Game.Persona4Golden || config.Game == Game.Persona4Dancing || config.Game == Game.Persona3Dancing || config.Game == Game.Persona5Dancing)
+            else if (config is ModCpkGameConfig)
+            {
+                var ppConfig = (ModCpkGameConfig)config;
+            }
+            else
             {
                 var ppConfig = (PersonaPortableGameConfig)config;
 
@@ -204,9 +248,55 @@ namespace ModCompendium
                     Grid.SetColumn(cpkExtract, 1);
                     ConfigPropertyGrid.Children.Add(cpkExtract);
                 }
+                
+                // Add extra row
+                ConfigPropertyGrid.RowDefinitions.Add(new RowDefinition());
 
+                // PC Mode checkbox label
+                var pcLabel = new Label()
+                {
+                    Content = "PC Mode",
+                    ToolTip = "Outputs files for use with the P4G PC Mod Loader",
+                    HorizontalContentAlignment = HorizontalAlignment.Center,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Height = 35,
+                    Width = 120,
+                    Visibility = Visibility.Hidden
+                };
+
+                Grid.SetRow(pcLabel, 5);
+                Grid.SetColumn(pcLabel, 0);
+                ConfigPropertyGrid.Children.Add(pcLabel);
+
+                // PC Mode Checkbox
+                CheckBox pc;
+                {
+                    pc = new CheckBox()
+                    {
+                        VerticalContentAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Height = 35,
+                        Visibility = Visibility.Hidden
+                    };
+
+                    pc.SetBinding(CheckBox.IsCheckedProperty, new Binding(nameof(PersonaPortableGameConfig.PC)));
+
+                    Grid.SetRow(pc, 5);
+                    Grid.SetColumn(pc, 1);
+                    ConfigPropertyGrid.Children.Add(pc);
+                }
+                if (config.Game == Game.Persona4Golden)
+                {
+                    pc.Visibility = Visibility.Visible;
+                    pcLabel.Visibility = Visibility.Visible;
+                }
+                else
+                    pc.IsChecked = false;
             }
-            if (config.Game == Game.Persona3Portable || config.Game == Game.Persona4Golden || config.Game == Game.Persona4Dancing || config.Game == Game.Persona5 || config.Game == Game.Persona3Dancing || config.Game == Game.Persona5Dancing)
+            if (config.Game != Game.Persona3 && config.Game != Game.Persona4)
             {
                 // Add extra row
                 ConfigPropertyGrid.RowDefinitions.Add(new RowDefinition());

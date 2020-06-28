@@ -5,6 +5,7 @@ using ModCompendiumLibrary.VirtualFileSystem;
 using CriPakTools;
 using ModCompendiumLibrary.Configuration;
 using System.Diagnostics;
+using System.Linq;
 
 namespace ModCompendiumLibrary.ModSystem.Builders
 {
@@ -24,16 +25,29 @@ namespace ModCompendiumLibrary.ModSystem.Builders
             }
 
             // Get game config
-            var config = ConfigManager.Get(Game) as PersonaPortableGameConfig;
+            var config = ConfigStore.Get(Game) as PersonaPortableGameConfig;
             if (config == null)
             {
                 // Unlikely
                 throw new InvalidOperationException("Game config is missing.");
             }
 
-            if (string.IsNullOrWhiteSpace(config.CpkRootOrPath))
+            bool pc = Convert.ToBoolean(config.PC);
+            if (!pc && string.IsNullOrWhiteSpace(config.CpkRootOrPath))
             {
                 throw new InvalidConfigException("CPK path is not specified.");
+            }
+
+            // If PC Mode is enabled, clear contents
+            if (pc)
+            {
+                if (Directory.Exists(hostOutputPath))
+                    foreach (var directory in Directory.GetDirectories(hostOutputPath))
+                    {
+                        string[] stringArray = { "data00000", "data00001", "data00002", "data00003", "data00004", "data00005", "data00006", "movie00000", "movie00001", "movie00002", "snd" };
+                        if (stringArray.Any(Path.GetFileName(directory).ToLower().Equals))
+                            Directory.Delete(directory, true);
+                    }
             }
 
             // Create temp folder
@@ -46,38 +60,45 @@ namespace ModCompendiumLibrary.ModSystem.Builders
 
             Log.Builder.Trace($"{nameof(config.CpkRootOrPath)} = {config.CpkRootOrPath}");
 
-            if (config.CpkRootOrPath.EndsWith(".cpk"))
+            if (!pc)
             {
-                // If extraction is enabled, use files from CPK path 
-                useExtracted = Convert.ToBoolean(config.Extract);
-                if (useExtracted)
+                if (config.CpkRootOrPath.EndsWith(".cpk"))
                 {
-                    Log.Builder.Info($"Extracting CPK: {config.CpkRootOrPath}");
-
-                    if (!File.Exists(config.CpkRootOrPath))
+                    // If extraction is enabled, use files from CPK path 
+                    useExtracted = Convert.ToBoolean(config.Extract);
+                    if (useExtracted)
                     {
-                        throw new InvalidConfigException($"CPK root path references a CPK file that does not exist: {config.CpkRootOrPath}.");
+                        Log.Builder.Info($"Extracting CPK: {config.CpkRootOrPath}");
+
+                        if (!File.Exists(config.CpkRootOrPath))
+                        {
+                            throw new InvalidConfigException($"CPK root path references a CPK file that does not exist: {config.CpkRootOrPath}.");
+                        }
+
+                        string[] args = { "-x", "-i", config.CpkRootOrPath, "-d", cpkRootDirectoryPath };
+                        CriPakTools.Program.Main(args);
                     }
-                
-                    string[] args = { "-x", "-i", config.CpkRootOrPath, "-d", cpkRootDirectoryPath };
-                    CriPakTools.Program.Main(args);
+                    // Cpk file found & extracted, convert it to our virtual file system
+                    cpkRootDirectory = VirtualDirectory.FromHostDirectory(cpkRootDirectoryPath);
+                    cpkRootDirectory.Name = Path.GetFileNameWithoutExtension(config.CpkRootOrPath);
                 }
-                // Cpk file found & extracted, convert it to our virtual file system
-                cpkRootDirectory = VirtualDirectory.FromHostDirectory(cpkRootDirectoryPath);
-                cpkRootDirectory.Name = Path.GetFileNameWithoutExtension(config.CpkRootOrPath);
+                else
+                {
+                    Log.Builder.Info($"Mounting directory: {config.CpkRootOrPath}");
+
+                    if (!Directory.Exists(config.CpkRootOrPath))
+                    {
+                        throw new InvalidConfigException($"CPK root path references a directory that does not exist: {config.CpkRootOrPath}.");
+                    }
+
+                    // No CPK file found, assume files are extracted
+                    cpkRootDirectory = VirtualDirectory.FromHostDirectory(config.CpkRootOrPath);
+                    cpkRootDirectory.Name = Path.GetDirectoryName(config.CpkRootOrPath);
+                }
             }
             else
             {
-                Log.Builder.Info($"Mounting directory: {config.CpkRootOrPath}");
-
-                if (!Directory.Exists(config.CpkRootOrPath))
-                {
-                    throw new InvalidConfigException($"CPK root path references a directory that does not exist: {config.CpkRootOrPath}.");
-                }
-
-                // No CPK file found, assume files are extracted
-                cpkRootDirectory = VirtualDirectory.FromHostDirectory(config.CpkRootOrPath);
-                cpkRootDirectory.Name = Path.GetDirectoryName(config.CpkRootOrPath);
+                cpkRootDirectory = new VirtualDirectory();
             }
 
             Log.Builder.Info("Processing mod files");
@@ -88,31 +109,37 @@ namespace ModCompendiumLibrary.ModSystem.Builders
                     var directory = (VirtualDirectory)entry;
                     var name = directory.Name.ToLowerInvariant();
 
-                    switch (name)
+                    // Skip recompiling CVMs if HostFS Mode
+                    if (pc)
+                        entry.MoveTo(cpkRootDirectory, true);
+                    else
                     {
-                        case "mod":
-                        case "cache":
-                        case "umd0":
-                        case "umd1":
-                        case "vita":
-                        case "patch":
-                        case "memst":
-                            {
-                                // Move files in 'cpk' directory to 'mod' directory
-                                LogModFilesInDirectory(directory);
-
-                                foreach (var modFileEntry in directory)
+                        switch (name)
+                        {
+                            case "mod":
+                            case "cache":
+                            case "umd0":
+                            case "umd1":
+                            case "vita":
+                            case "patch":
+                            case "memst":
                                 {
-                                    modFileEntry.CopyTo(cpkRootDirectory);
-                                }
-                            }
-                            break;
+                                    // Move files in 'cpk' directory to 'mod' directory
+                                    LogModFilesInDirectory(directory);
 
-                        default:
-                            // Move directory to 'mod' directory
-                            Log.Builder.Trace($"Adding directory {entry.FullName} to {cpkRootDirectory.Name}.cpk");
-                            entry.CopyTo(cpkRootDirectory);
-                            break;
+                                    foreach (var modFileEntry in directory)
+                                    {
+                                        modFileEntry.CopyTo(cpkRootDirectory);
+                                    }
+                                }
+                                break;
+
+                            default:
+                                // Move directory to 'mod' directory
+                                Log.Builder.Trace($"Adding directory {entry.FullName} to {cpkRootDirectory.Name}.cpk");
+                                entry.CopyTo(cpkRootDirectory);
+                                break;
+                        }
                     }
                 }
                 else
@@ -126,11 +153,22 @@ namespace ModCompendiumLibrary.ModSystem.Builders
             useCompression = Convert.ToBoolean(config.Compression);
 
             // Build mod cpk
-            var cpkModCompiler = new CpkModBuilder();
-            var cpkFilePath = hostOutputPath != null ? Path.Combine(hostOutputPath, $"{cpkRootDirectory.Name}.cpk") : null;
-            var cpkFile = cpkModCompiler.Build(cpkRootDirectory, cpkFilePath, gameName, useCompression);
-            Log.Builder.Info("Done!");
-            return cpkFile;
+            if (!pc) 
+            {
+                var cpkModCompiler = new CpkModBuilder();
+                var cpkFilePath = hostOutputPath != null ? Path.Combine(hostOutputPath, $"{cpkRootDirectory.Name}.cpk") : null;
+                var cpkFile = cpkModCompiler.Build(cpkRootDirectory, cpkFilePath, gameName, useCompression);
+                Log.Builder.Info("Done!");
+                return cpkFile;
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetFullPath(hostOutputPath));
+                cpkRootDirectory.SaveToHost(hostOutputPath);
+                Log.Builder.Info("Done!");
+                return cpkRootDirectory;
+            }
+            
         }
 
         private void LogModFilesInDirectory(VirtualDirectory directory)
@@ -163,15 +201,15 @@ namespace ModCompendiumLibrary.ModSystem.Builders
         protected override Game Game => Game.Persona4Dancing;
     }
 
-    [ModBuilder("Persona 3 Dancing Mod Builder", Game = Game.Persona3Dancing)]
-    public class Persona3DancingModBuilder : PersonaPortableModBuilder
+    [ModBuilder("Persona Q Mod Builder", Game = Game.PersonaQ)]
+    public class PersonaQModBuilder : PersonaPortableModBuilder
     {
-        protected override Game Game => Game.Persona3Dancing;
+        protected override Game Game => Game.PersonaQ;
     }
 
-    [ModBuilder("Persona 5 Dancing Mod Builder", Game = Game.Persona5Dancing)]
-    public class Persona5DancingModBuilder : PersonaPortableModBuilder
+    [ModBuilder("Persona Q2 Mod Builder", Game = Game.PersonaQ2)]
+    public class PersonaQ2ModBuilder : PersonaPortableModBuilder
     {
-        protected override Game Game => Game.Persona5Dancing;
+        protected override Game Game => Game.PersonaQ2;
     }
 }
